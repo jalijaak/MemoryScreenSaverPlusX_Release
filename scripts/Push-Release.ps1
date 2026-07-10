@@ -39,6 +39,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# PowerShell 7.3+ otherwise turns routine stderr chatter from git/gh (e.g. git's
+# "From https://..." fetch line, or gh's non-zero "release not found" exit when
+# checking whether a release already exists) into a terminating NativeCommandError,
+# even though the command itself succeeded/behaved as expected. This script already
+# checks $LASTEXITCODE explicitly after every native call, so that's the only
+# signal that should matter.
+$PSNativeCommandUseErrorActionPreference = $false
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -54,10 +61,30 @@ Write-Host "  Source dist:  $SourceDistDir"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+# Runs a native command with stderr merged into the captured output, WITHOUT
+# letting that stderr text become a terminating error. `2>&1` on a native
+# command wraps each stderr line as a PowerShell ErrorRecord; with the
+# script-wide $ErrorActionPreference = 'Stop' in effect, encountering ANY such
+# record - even routine chatter like git's "From https://..." fetch header, or
+# a merely-informative line - throws before $LASTEXITCODE can even be checked.
+# Temporarily relaxing to 'Continue' for just the invocation avoids that, while
+# still capturing the text (via Out-String) and leaving $LASTEXITCODE intact
+# for the real, explicit success/failure check below.
+function Invoke-Native {
+    param([string] $Exe, [string[]] $NativeArgs)
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        return & $Exe @NativeArgs 2>&1 | Out-String
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+}
+
 function Invoke-Git {
     param([string[]] $GitArgs, [switch] $AllowFail)
     Write-Host "  git $($GitArgs -join ' ')" -ForegroundColor DarkGray
-    $out = & git -C $RepoRoot @GitArgs 2>&1 | Out-String
+    $out = Invoke-Native -Exe 'git' -NativeArgs (@('-C', $RepoRoot) + $GitArgs)
     if ($LASTEXITCODE -ne 0 -and -not $AllowFail) {
         Write-Error "git $($GitArgs -join ' ') failed (exit $LASTEXITCODE):`n$out"
     }
@@ -67,7 +94,7 @@ function Invoke-Git {
 function Invoke-Gh {
     param([string[]] $GhArgs, [switch] $AllowFail)
     Write-Host "  gh $($GhArgs -join ' ')" -ForegroundColor DarkGray
-    $out = & gh @GhArgs 2>&1 | Out-String
+    $out = Invoke-Native -Exe 'gh' -NativeArgs $GhArgs
     if ($LASTEXITCODE -ne 0 -and -not $AllowFail) {
         Write-Error "gh $($GhArgs -join ' ') failed (exit $LASTEXITCODE):`n$out"
     }
@@ -375,13 +402,13 @@ $GhCmd = Get-Command gh -ErrorAction SilentlyContinue
 if (-not $GhCmd) {
     Write-Warning "gh (GitHub CLI) not found on PATH - install it (https://cli.github.com/), authenticate ('gh auth login'), then run:`n  $ManualCommand"
 } else {
-    & gh auth status *> $null
+    Invoke-Native -Exe 'gh' -NativeArgs @('auth', 'status') | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "gh is installed but not authenticated - run 'gh auth login', then run:`n  $ManualCommand"
     } elseif ($DryRun) {
         Write-Host "  -DryRun: would run:`n  $ManualCommand" -ForegroundColor DarkGray
     } else {
-        & gh release view "v$Version" --repo $RepoSlug *> $null
+        Invoke-Native -Exe 'gh' -NativeArgs @('release', 'view', "v$Version", '--repo', $RepoSlug) | Out-Null
         $ReleaseExists = ($LASTEXITCODE -eq 0)
 
         if ($ReleaseExists -and -not $Force) {

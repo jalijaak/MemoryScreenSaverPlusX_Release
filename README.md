@@ -1,4 +1,4 @@
-# Memory Screen Saver Plus X - Release Packages
+﻿# Memory Screen Saver Plus X - Release Packages
 
 This repository is the public download point for **Memory Screen Saver Plus X**,
 a cross-platform (Windows 10+ / macOS 12+) screensaver, live-presentation, and slideshow
@@ -20,9 +20,9 @@ Download from the [v2.0.4.14 release page](https://github.com/jalijaak/MemoryScr
 
 | Platform | File |
 |----------|------|
-| Windows x64 | [MemoryScreenSaverPlus-Setup-v2.0.4.14-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-Setup-v2.0.4.14-win-x64.exe) |
-| macOS x64 (tar.gz) | [MemoryScreenSaverPlus-v2.0.4.14-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-v2.0.4.14-macos-x64.tar.gz) |
-| macOS arm64 (tar.gz) | [MemoryScreenSaverPlus-v2.0.4.14-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-v2.0.4.14-macos-arm64.tar.gz) |
+| MemoryScreenSaverPlus-Setup-v2.0.4.14-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.0.4.14-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-Setup-v2.0.4.14-win-x64.exe) |
+| MemoryScreenSaverPlus-v2.0.4.14-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.14-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-v2.0.4.14-macos-x64.tar.gz) |
+| MemoryScreenSaverPlus-v2.0.4.14-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.14-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.14/MemoryScreenSaverPlus-v2.0.4.14-macos-arm64.tar.gz) |
 
 Release notes: [release-notes/v2.0.4.14.md](release-notes/v2.0.4.14.md)
 Checksums: attached alongside each installer on the release page.
