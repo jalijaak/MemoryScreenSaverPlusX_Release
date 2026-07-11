@@ -113,9 +113,38 @@ if (-not (Test-Path $SourceVersionJsonPath)) {
 }
 $SourceVersionObj = Get-Content $SourceVersionJsonPath -Raw | ConvertFrom-Json
 
+function Find-VersionsMatching {
+    param([string] $Dir, [string] $Pattern)
+    if (-not (Test-Path $Dir)) { return @() }
+    $found = Get-ChildItem $Dir -File | ForEach-Object {
+        if ($_.Name -match $Pattern) { $Matches['ver'] }
+    }
+    return @($found | Sort-Object -Unique)
+}
+
+$WinDirProbe = Join-Path $SourceDistDir 'win64'
+$MacDirProbe = Join-Path $SourceDistDir 'mac'
+$WinVersionsOnDisk = Find-VersionsMatching $WinDirProbe 'MemoryScreenSaverPlus-Setup-v(?<ver>[\d.]+)-win-x64\.exe'
+$MacVersionsOnDisk = Find-VersionsMatching $MacDirProbe 'MemoryScreenSaverPlus-v(?<ver>[\d.]+)-macos(-x64|-arm64)?\.(dmg|pkg|tar\.gz)'
+
 if (-not $Version) {
     $Version = $SourceVersionObj.version
     Write-Host "  No -Version given - using dist/version.json: v$Version"
+
+    # If version.json drifted ahead of real installers (classic symptom: empty
+    # sha256 stub written after the counter advanced), prefer the single version
+    # that actually has both Windows + macOS artifacts on disk.
+    $WinHasJson = $WinVersionsOnDisk -contains $Version
+    $MacHasJson = $MacVersionsOnDisk -contains $Version
+    if (-not $WinHasJson -or -not $MacHasJson) {
+        $Common = @($WinVersionsOnDisk | Where-Object { $MacVersionsOnDisk -contains $_ })
+        if ($Common.Count -eq 1) {
+            Write-Warning ("dist/version.json is v{0} but installers on disk are v{1}. " +
+                "Using v{1} (pass -Version explicitly to override). Re-run " +
+                "installer/Build-All-Installers.ps1 so version.json stays aligned.") -f $Version, $Common[0]
+            $Version = $Common[0]
+        }
+    }
 }
 Write-Host "  Target release: v$Version" -ForegroundColor Yellow
 
@@ -136,15 +165,6 @@ $MacArmTar      = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-arm64
 $MacChecksum    = Join-Path $MacDir "checksums-macos-v$Version.txt"
 $NotesFile      = Join-Path $SourceDistDir "ReleaseNotes-v$Version.md"
 
-function Find-VersionsMatching {
-    param([string] $Dir, [string] $Pattern)
-    if (-not (Test-Path $Dir)) { return @() }
-    $found = Get-ChildItem $Dir -File | ForEach-Object {
-        if ($_.Name -match $Pattern) { $Matches['ver'] }
-    }
-    return @($found | Sort-Object -Unique)
-}
-
 $Missing = @()
 if (-not (Test-Path $WinExe))      { $Missing += $WinExe }
 if (-not (Test-Path $WinChecksum)) { $Missing += $WinChecksum }
@@ -158,8 +178,8 @@ if (-not (Test-Path $MacChecksum)) { $Missing += $MacChecksum }
 if (-not (Test-Path $NotesFile))   { $Missing += $NotesFile }
 
 if ($Missing.Count -gt 0) {
-    $WinVersions = Find-VersionsMatching $WinDir 'MemoryScreenSaverPlus-Setup-v(?<ver>[\d.]+)-win-x64\.exe'
-    $MacVersions = Find-VersionsMatching $MacDir 'MemoryScreenSaverPlus-v(?<ver>[\d.]+)-macos(-x64|-arm64)?\.(dmg|tar\.gz)'
+    $WinVersions = $WinVersionsOnDisk
+    $MacVersions = $MacVersionsOnDisk
     $MissingList = ($Missing | ForEach-Object { "  - $_" }) -join "`n"
     Write-Error @"
 Cannot push v$Version - missing required artifacts:
@@ -168,8 +188,8 @@ $MissingList
 Available win64 versions: $($WinVersions -join ', ')
 Available macOS versions: $($MacVersions -join ', ')
 
-Build the missing artifacts in the source repo first, or pass -Version <ver> to
-push a version that already has installers for every platform.
+Build the missing artifacts in the source repo first (installer/Build-All-Installers.ps1),
+or pass -Version <ver> to push a version that already has installers for every platform.
 "@
 }
 
@@ -185,7 +205,9 @@ if (Test-Path $WinArmChecksum) { $AssetPaths += $WinArmChecksum }
 $AssetPaths += if ($MacSigned) { @($MacDmg, $MacPkg) } else { @($MacX64Tar, $MacArmTar) }
 $AssetPaths += $MacChecksum
 
-$VersionMatchesSource = ($SourceVersionObj.version -eq $Version)
+if ($SourceVersionObj.version -ne $Version) {
+    Write-Warning "Source dist/version.json describes v$($SourceVersionObj.version), not v$Version being pushed - regenerating release-repo version.json from the installer files on disk."
+}
 
 # ── Resolve this repo's GitHub slug (owner/repo) from the origin remote ────
 
@@ -238,61 +260,71 @@ Write-Host '--- Release notes ---' -ForegroundColor Yellow
 $NotesDir = Join-Path $RepoRoot 'release-notes'
 New-Item -ItemType Directory -Force -Path $NotesDir | Out-Null
 $NotesDest = Join-Path $NotesDir "v$Version.md"
-if ((Test-Path $NotesDest) -and -not $Force) {
-    Write-Error "release-notes/v$Version.md already exists. Re-running would overwrite an already-published version's notes. Pass -Force if that's intended."
+$NotesRel  = "release-notes/v$Version.md"
+
+# Only refuse overwrite when this version's notes are already committed in HEAD
+# (i.e. a prior successful push). A leftover file from a failed/partial run is
+# safe to replace without -Force so retries can finish cleanly.
+$NotesCommitted = $false
+if (Test-Path $NotesDest) {
+    Invoke-Native -Exe 'git' -NativeArgs @('-C', $RepoRoot, 'cat-file', '-e', "HEAD:$NotesRel") | Out-Null
+    $NotesCommitted = ($LASTEXITCODE -eq 0)
+}
+if ($NotesCommitted -and -not $Force) {
+    Write-Error "release-notes/v$Version.md is already committed. Re-running would overwrite an already-published version's notes. Pass -Force if that's intended."
 }
 Copy-Item $NotesFile $NotesDest -Force
-Write-Host "  release-notes/v$Version.md written."
+if ($NotesCommitted -and $Force) {
+    Write-Host "  release-notes/v$Version.md overwritten (per -Force)."
+} else {
+    Write-Host "  release-notes/v$Version.md written."
+}
 
 # ── version.json (the "latest" pointer, rewritten to point at THIS repo) ───
 
 Write-Host ''
 Write-Host '--- version.json ---' -ForegroundColor Yellow
 
-if ($VersionMatchesSource) {
-    function New-InstallerEntry {
-        param([string] $Rid, [string] $Path)
-        $Filename = Split-Path $Path -Leaf
-        [ordered]@{
-            rid      = $Rid
-            filename = $Filename
-            sha256   = (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower()
-            size     = (Get-Item $Path).Length
-            url      = "$RepoWebUrl/releases/download/v$Version/$Filename"
-        }
+function New-InstallerEntry {
+    param([string] $Rid, [string] $Path)
+    $Filename = Split-Path $Path -Leaf
+    [ordered]@{
+        rid      = $Rid
+        filename = $Filename
+        sha256   = (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower()
+        size     = (Get-Item $Path).Length
+        url      = "$RepoWebUrl/releases/download/v$Version/$Filename"
     }
-
-    $WinInstallers = @(New-InstallerEntry -Rid 'win-x64' -Path $WinExe)
-    if (Test-Path $WinArmExe) { $WinInstallers += New-InstallerEntry -Rid 'win-arm64' -Path $WinArmExe }
-
-    $MacInstallers = if ($MacSigned) {
-        @((New-InstallerEntry -Rid 'osx-universal' -Path $MacDmg), (New-InstallerEntry -Rid 'osx-universal' -Path $MacPkg))
-    } else {
-        @((New-InstallerEntry -Rid 'osx-x64' -Path $MacX64Tar), (New-InstallerEntry -Rid 'osx-arm64' -Path $MacArmTar))
-    }
-
-    $VersionJson = [ordered]@{
-        schemaVersion = '2'
-        version       = $Version
-        releaseDate   = $SourceVersionObj.releaseDate
-        releaseNotes  = "$RepoWebUrl/releases/tag/v$Version"
-        platforms     = [ordered]@{
-            windows = [ordered]@{
-                requirements = $SourceVersionObj.platforms.windows.requirements
-                installers   = $WinInstallers
-            }
-            macos = [ordered]@{
-                requirements = $SourceVersionObj.platforms.macos.requirements
-                installers   = $MacInstallers
-            }
-        }
-    }
-    $VersionJsonPath = Join-Path $RepoRoot 'version.json'
-    $VersionJson | ConvertTo-Json -Depth 10 | Set-Content -Path $VersionJsonPath -Encoding UTF8
-    Write-Host "  version.json regenerated for v$Version, pointing at $RepoWebUrl."
-} else {
-    Write-Warning "Source dist/version.json describes v$($SourceVersionObj.version), not v$Version being pushed - leaving this repo's root version.json untouched."
 }
+
+$WinInstallers = @(New-InstallerEntry -Rid 'win-x64' -Path $WinExe)
+if (Test-Path $WinArmExe) { $WinInstallers += New-InstallerEntry -Rid 'win-arm64' -Path $WinArmExe }
+
+$MacInstallers = if ($MacSigned) {
+    @((New-InstallerEntry -Rid 'osx-universal' -Path $MacDmg), (New-InstallerEntry -Rid 'osx-universal' -Path $MacPkg))
+} else {
+    @((New-InstallerEntry -Rid 'osx-x64' -Path $MacX64Tar), (New-InstallerEntry -Rid 'osx-arm64' -Path $MacArmTar))
+}
+
+$VersionJson = [ordered]@{
+    schemaVersion = '2'
+    version       = $Version
+    releaseDate   = $(if ($SourceVersionObj.releaseDate) { $SourceVersionObj.releaseDate } else { (Get-Date).ToString('yyyy-MM-dd') })
+    releaseNotes  = "$RepoWebUrl/releases/tag/v$Version"
+    platforms     = [ordered]@{
+        windows = [ordered]@{
+            requirements = $SourceVersionObj.platforms.windows.requirements
+            installers   = $WinInstallers
+        }
+        macos = [ordered]@{
+            requirements = $SourceVersionObj.platforms.macos.requirements
+            installers   = $MacInstallers
+        }
+    }
+}
+$VersionJsonPath = Join-Path $RepoRoot 'version.json'
+$VersionJson | ConvertTo-Json -Depth 10 | Set-Content -Path $VersionJsonPath -Encoding UTF8
+Write-Host "  version.json regenerated for v$Version, pointing at $RepoWebUrl."
 
 # ── README.md "latest release" section ──────────────────────────────────────
 
@@ -367,13 +399,10 @@ if ($BeginIdx -ge 0 -and $EndIdx -ge 0) {
 Write-Host ''
 Write-Host '--- Committing ---' -ForegroundColor Yellow
 
-foreach ($RelPath in @('README.md', "release-notes/v$Version.md", 'scripts/Push-Release.ps1')) {
+foreach ($RelPath in @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1')) {
     if (Test-Path (Join-Path $RepoRoot $RelPath)) {
         Invoke-Git -GitArgs @('add', '--', $RelPath) | Out-Null
     }
-}
-if ($VersionMatchesSource) {
-    Invoke-Git -GitArgs @('add', '--', 'version.json') | Out-Null
 }
 
 $StagedDiff = (Invoke-Git -GitArgs @('diff', '--cached', '--stat') -AllowFail).Trim()
