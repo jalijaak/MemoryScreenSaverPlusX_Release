@@ -14,17 +14,17 @@ holds only this README and the per-release notes under `release-notes/`, never t
 installer binaries themselves.
 
 <!-- LATEST-RELEASE:BEGIN -->
-## Latest release: v2.0.4.27
+## Latest release: v2.0.4.29
 
-Download from the [v2.0.4.27 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.0.4.27):
+Download from the [v2.0.4.29 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.0.4.29):
 
 | Platform | File |
 |----------|------|
-| MemoryScreenSaverPlus-Setup-v2.0.4.27-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.0.4.27-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.27/MemoryScreenSaverPlus-Setup-v2.0.4.27-win-x64.exe) |
-| MemoryScreenSaverPlus-v2.0.4.27-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.27-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.27/MemoryScreenSaverPlus-v2.0.4.27-macos-x64.tar.gz) |
-| MemoryScreenSaverPlus-v2.0.4.27-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.27-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.27/MemoryScreenSaverPlus-v2.0.4.27-macos-arm64.tar.gz) |
+| MemoryScreenSaverPlus-Setup-v2.0.4.29-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.0.4.29-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.29/MemoryScreenSaverPlus-Setup-v2.0.4.29-win-x64.exe) |
+| MemoryScreenSaverPlus-v2.0.4.29-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.29-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.29/MemoryScreenSaverPlus-v2.0.4.29-macos-x64.tar.gz) |
+| MemoryScreenSaverPlus-v2.0.4.29-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.0.4.29-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.29/MemoryScreenSaverPlus-v2.0.4.29-macos-arm64.tar.gz) |
 
-Release notes: [release-notes/v2.0.4.27.md](release-notes/v2.0.4.27.md)
+Release notes: [release-notes/v2.0.4.29.md](release-notes/v2.0.4.29.md)
 Checksums: attached alongside each installer on the release page.
 <!-- LATEST-RELEASE:END -->
 
