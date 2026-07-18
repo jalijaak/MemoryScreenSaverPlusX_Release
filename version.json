@@ -1,8 +1,8 @@
 ﻿{
     "schemaVersion":  "2",
-    "version":  "2.0.4.59",
-    "releaseDate":  "2026-07-16",
-    "releaseNotes":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.0.4.59",
+    "version":  "2.0.5.51",
+    "releaseDate":  "2026-07-18",
+    "releaseNotes":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.0.5.51",
     "platforms":  {
                       "windows":  {
                                       "requirements":  {
@@ -16,10 +16,10 @@
                                       "installers":  [
                                                          {
                                                              "rid":  "win-x64",
-                                                             "filename":  "MemoryScreenSaverPlus-Setup-v2.0.4.59-win-x64.exe",
-                                                             "sha256":  "11bb787bb81f0c326285dfc07ede7d65033b07a271d06c87b439b85ec70d5599",
-                                                             "size":  98370788,
-                                                             "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.59/MemoryScreenSaverPlus-Setup-v2.0.4.59-win-x64.exe"
+                                                             "filename":  "MemoryScreenSaverPlus-Setup-v2.0.5.51-win-x64.exe",
+                                                             "sha256":  "0a9155771fd5eda26d05af106330879fdf7fd22da8869ad513d188de41489699",
+                                                             "size":  99138933,
+                                                             "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.5.51/MemoryScreenSaverPlus-Setup-v2.0.5.51-win-x64.exe"
                                                          }
                                                      ]
                                   },
@@ -35,17 +35,17 @@
                                     "installers":  [
                                                        {
                                                            "rid":  "osx-x64",
-                                                           "filename":  "MemoryScreenSaverPlus-v2.0.4.59-macos-x64.tar.gz",
-                                                           "sha256":  "6da8926e21abf6ce7157dd5aa035b538cb6076b0679ee6d88b24b98b315ce670",
-                                                           "size":  93945356,
-                                                           "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.59/MemoryScreenSaverPlus-v2.0.4.59-macos-x64.tar.gz"
+                                                           "filename":  "MemoryScreenSaverPlus-v2.0.5.51-macos-x64.tar.gz",
+                                                           "sha256":  "49213cf90ad008b10d19a9d5a37d3e84856777d2165cc43a6eca00c5a7c91c03",
+                                                           "size":  94744600,
+                                                           "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.5.51/MemoryScreenSaverPlus-v2.0.5.51-macos-x64.tar.gz"
                                                        },
                                                        {
                                                            "rid":  "osx-arm64",
-                                                           "filename":  "MemoryScreenSaverPlus-v2.0.4.59-macos-arm64.tar.gz",
-                                                           "sha256":  "a9bb58992da176c4ba82f8b17397c0ed9fd57603c935f6a60038ba309313dc86",
-                                                           "size":  76155632,
-                                                           "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.4.59/MemoryScreenSaverPlus-v2.0.4.59-macos-arm64.tar.gz"
+                                                           "filename":  "MemoryScreenSaverPlus-v2.0.5.51-macos-arm64.tar.gz",
+                                                           "sha256":  "d686033bd5022a8db53eabbccb9c3666322dd8e3a308bfe31750ee6a2dc24839",
+                                                           "size":  76950450,
+                                                           "url":  "https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.0.5.51/MemoryScreenSaverPlus-v2.0.5.51-macos-arm64.tar.gz"
                                                        }
                                                    ]
                                 }
