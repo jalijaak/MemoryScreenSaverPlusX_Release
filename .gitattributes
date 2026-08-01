@@ -1,0 +1,5 @@
+# GitHub always attaches "Source code (zip/tar.gz)" links to every release tag.
+# Those archives are NOT product downloads — this repo holds only release metadata.
+# export-ignore keeps the auto archives empty so users are steered to the installer assets.
+
+* export-ignore

@@ -11,21 +11,24 @@ self-contained and bundles everything it needs.
 Installers are published as [GitHub Releases](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases)
 (downloadable assets attached to each version's release page) - this repo's git history
 holds only this README and the per-release notes under `release-notes/`, never the
-installer binaries themselves.
+installer binaries themselves. Release assets are installer binaries only; SHA-256 is in
+`version.json`. Ignore GitHub's auto-generated "Source code" zip/tar.gz links.
 
 <!-- LATEST-RELEASE:BEGIN -->
-## Latest release: v2.6.31
+## Latest release: v2.6.45
 
-Download from the [v2.6.31 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.6.31):
+Download from the [v2.6.45 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.6.45):
 
 | Platform | File |
 |----------|------|
-| MemoryScreenSaverPlus-Setup-v2.6.31-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.6.31-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.31/MemoryScreenSaverPlus-Setup-v2.6.31-win-x64.exe) |
-| MemoryScreenSaverPlus-v2.6.31-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.6.31-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.31/MemoryScreenSaverPlus-v2.6.31-macos-x64.tar.gz) |
-| MemoryScreenSaverPlus-v2.6.31-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.6.31-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.31/MemoryScreenSaverPlus-v2.6.31-macos-arm64.tar.gz) |
+| MemoryScreenSaverPlus-Setup-v2.6.45-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.6.45-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.45/MemoryScreenSaverPlus-Setup-v2.6.45-win-x64.exe) |
+| MemoryScreenSaverPlus-v2.6.45-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.6.45-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.45/MemoryScreenSaverPlus-v2.6.45-macos-x64.tar.gz) |
+| MemoryScreenSaverPlus-v2.6.45-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.6.45-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.6.45/MemoryScreenSaverPlus-v2.6.45-macos-arm64.tar.gz) |
 
-Release notes: [release-notes/v2.6.31.md](release-notes/v2.6.31.md)
-Checksums: attached alongside each installer on the release page.
+Release notes: [release-notes/v2.6.45.md](release-notes/v2.6.45.md)
+
+SHA-256 hashes for each installer are in [version.json](version.json). Use the installer
+links above â€” ignore GitHub's auto-generated "Source code" zip/tar.gz (not product packages).
 <!-- LATEST-RELEASE:END -->
 
 ## License

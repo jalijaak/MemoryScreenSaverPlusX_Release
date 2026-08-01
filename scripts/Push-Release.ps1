@@ -154,28 +154,28 @@ $WinDir    = Join-Path $SourceDistDir 'win64'
 $WinArmDir = Join-Path $SourceDistDir 'win-arm64'
 $MacDir    = Join-Path $SourceDistDir 'mac'
 
-$WinExe         = Join-Path $WinDir "MemoryScreenSaverPlus-Setup-v$Version-win-x64.exe"
-$WinChecksum    = Join-Path $WinDir "checksums-win64-v$Version.txt"
-$WinArmExe      = Join-Path $WinArmDir "MemoryScreenSaverPlus-Setup-v$Version-win-arm64.exe"
-$WinArmChecksum = Join-Path $WinArmDir "checksums-win-arm64-v$Version.txt"
-$MacDmg         = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos.dmg"
-$MacPkg         = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos.pkg"
-$MacX64Tar      = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-x64.tar.gz"
-$MacArmTar      = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-arm64.tar.gz"
-$MacChecksum    = Join-Path $MacDir "checksums-macos-v$Version.txt"
-$NotesFile      = Join-Path $SourceDistDir "ReleaseNotes-v$Version.md"
+$WinExe    = Join-Path $WinDir "MemoryScreenSaverPlus-Setup-v$Version-win-x64.exe"
+$WinArmExe = Join-Path $WinArmDir "MemoryScreenSaverPlus-Setup-v$Version-win-arm64.exe"
+$MacDmg    = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos.dmg"
+$MacPkg    = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos.pkg"
+$MacX64Tar = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-x64.tar.gz"
+$MacArmTar = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-arm64.tar.gz"
+$NotesFile = Join-Path $SourceDistDir "ReleaseNotes-v$Version.md"
+
+# Minimal GitHub Release asset list: installer binaries only.
+# SHA-256 lives in version.json (REQ-XP-REL-15). No checksums-*.txt sidecars.
+# GitHub always shows auto "Source code" zip/tar.gz links for the tag; those are
+# not product downloads (see .gitattributes export-ignore in this repo).
 
 $Missing = @()
-if (-not (Test-Path $WinExe))      { $Missing += $WinExe }
-if (-not (Test-Path $WinChecksum)) { $Missing += $WinChecksum }
+if (-not (Test-Path $WinExe)) { $Missing += $WinExe }
 
 $MacSigned   = (Test-Path $MacDmg) -and (Test-Path $MacPkg)
 $MacArchived = (Test-Path $MacX64Tar) -and (Test-Path $MacArmTar)
 if (-not $MacSigned -and -not $MacArchived) {
     $Missing += "$MacDmg + $MacPkg (signed)  --OR--  $MacX64Tar + $MacArmTar (archives)"
 }
-if (-not (Test-Path $MacChecksum)) { $Missing += $MacChecksum }
-if (-not (Test-Path $NotesFile))   { $Missing += $NotesFile }
+if (-not (Test-Path $NotesFile)) { $Missing += $NotesFile }
 
 if ($Missing.Count -gt 0) {
     $WinVersions = $WinVersionsOnDisk
@@ -199,11 +199,9 @@ $MacKindLabel = if ($MacSigned) { 'OK (signed dmg/pkg)' } else { 'OK (unsigned t
 Write-Host "  macOS installer:        $MacKindLabel" -ForegroundColor Green
 Write-Host "  Release notes:          $NotesFile" -ForegroundColor Green
 
-$AssetPaths = @($WinExe, $WinChecksum)
-if (Test-Path $WinArmExe)      { $AssetPaths += $WinArmExe }
-if (Test-Path $WinArmChecksum) { $AssetPaths += $WinArmChecksum }
+$AssetPaths = @($WinExe)
+if (Test-Path $WinArmExe) { $AssetPaths += $WinArmExe }
 $AssetPaths += if ($MacSigned) { @($MacDmg, $MacPkg) } else { @($MacX64Tar, $MacArmTar) }
-$AssetPaths += $MacChecksum
 
 if ($SourceVersionObj.version -ne $Version) {
     Write-Warning "Source dist/version.json describes v$($SourceVersionObj.version), not v$Version being pushed - regenerating release-repo version.json from the installer files on disk."
@@ -227,7 +225,7 @@ Write-Host '--- Syncing with origin ---' -ForegroundColor Yellow
 # This script only ever stages the specific paths it manages below - never a
 # blanket "add everything" - so an unrelated dirty file in this PUBLIC repo
 # can never be swept into a push by accident.
-$ManagedPaths = @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1')
+$ManagedPaths = @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', '.gitattributes', 'CLAUDE.md')
 function Test-IsManagedPath {
     param([string] $RelPath)
     $Normalized = ($RelPath.Trim('"')) -replace '\\', '/'
@@ -335,7 +333,7 @@ $ReadmePath        = Join-Path $RepoRoot 'README.md'
 $LatestBeginMarker = '<!-- LATEST-RELEASE:BEGIN -->'
 $LatestEndMarker   = '<!-- LATEST-RELEASE:END -->'
 
-$AssetRows = ($AssetPaths | Where-Object { $_ -notmatch 'checksums-' } | ForEach-Object {
+$AssetRows = ($AssetPaths | ForEach-Object {
     $Filename = Split-Path $_ -Leaf
     "| $Filename | [$Filename]($RepoWebUrl/releases/download/v$Version/$Filename) |"
 }) -join "`n"
@@ -351,7 +349,9 @@ Download from the [v$Version release page]($RepoWebUrl/releases/tag/v$Version):
 $AssetRows
 
 Release notes: [release-notes/v$Version.md](release-notes/v$Version.md)
-Checksums: attached alongside each installer on the release page.
+
+SHA-256 hashes for each installer are in [version.json](version.json). Use the installer
+links above — ignore GitHub's auto-generated "Source code" zip/tar.gz (not product packages).
 $LatestEndMarker
 "@
 
@@ -371,6 +371,8 @@ self-contained and bundles everything it needs.
 Installers are published as [GitHub Releases]($RepoWebUrl/releases) (downloadable assets
 attached to each version's release page) - this repo's git history holds only this README
 and the per-release notes under ``release-notes/``, never the installer binaries themselves.
+Release assets are installer binaries only; SHA-256 is in ``version.json``. Ignore GitHub's
+auto-generated "Source code" zip/tar.gz links.
 
 $LatestBeginMarker
 $LatestEndMarker
@@ -399,7 +401,7 @@ if ($BeginIdx -ge 0 -and $EndIdx -ge 0) {
 Write-Host ''
 Write-Host '--- Committing ---' -ForegroundColor Yellow
 
-foreach ($RelPath in @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1')) {
+foreach ($RelPath in @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', '.gitattributes', 'CLAUDE.md')) {
     if (Test-Path (Join-Path $RepoRoot $RelPath)) {
         Invoke-Git -GitArgs @('add', '--', $RelPath) | Out-Null
     }
