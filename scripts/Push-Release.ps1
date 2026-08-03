@@ -412,10 +412,33 @@ if (-not $StagedDiff) {
     Write-Host '  Nothing to commit - already up to date for this push.' -ForegroundColor DarkGray
 } else {
     Write-Host $StagedDiff
+
+    # Surface source-repo Changes (from Publish-Release / REQ-REL-11) in this
+    # public repo's commit message so `git log` / GitHub commit views show them —
+    # not only the release-notes file diff.
+    $CommitTitle = "Release v$Version"
+    $CommitBody  = ''
+    if (Test-Path $NotesDest) {
+        $NotesRaw = Get-Content -LiteralPath $NotesDest -Raw
+        $BulletMatches = [regex]::Matches($NotesRaw, '(?m)^(?:- |\* ).+$')
+        if ($BulletMatches.Count -gt 0) {
+            $CommitBody = ($BulletMatches | ForEach-Object { $_.Value.TrimEnd() }) -join "`n"
+        } else {
+            Write-Warning "release-notes/v$Version.md has an empty Changes section - source commit subjects were not captured. Re-run Publish-Release in the source repo (restore release-baseline.txt if needed) before pushing."
+        }
+    }
+
     if ($DryRun) {
         Write-Host '  -DryRun: skipping commit + push.' -ForegroundColor DarkGray
+        if ($CommitBody) {
+            Write-Host "  Would commit as:`n  $CommitTitle`n`n$CommitBody" -ForegroundColor DarkGray
+        }
     } else {
-        Invoke-Git -GitArgs @('commit', '-m', "Release v$Version") | Out-Null
+        if ($CommitBody) {
+            Invoke-Git -GitArgs @('commit', '-m', $CommitTitle, '-m', $CommitBody) | Out-Null
+        } else {
+            Invoke-Git -GitArgs @('commit', '-m', $CommitTitle) | Out-Null
+        }
         Invoke-Git -GitArgs @('push', '-u', 'origin', $TargetBranch) | Out-Null
         $Sha = (Invoke-Git -GitArgs @('rev-parse', 'HEAD')).Trim()
         Write-Host "  Pushed metadata (commit $Sha)." -ForegroundColor Green
