@@ -434,10 +434,20 @@ if (-not $StagedDiff) {
             Write-Host "  Would commit as:`n  $CommitTitle`n`n$CommitBody" -ForegroundColor DarkGray
         }
     } else {
-        if ($CommitBody) {
-            Invoke-Git -GitArgs @('commit', '-m', $CommitTitle, '-m', $CommitBody) | Out-Null
-        } else {
-            Invoke-Git -GitArgs @('commit', '-m', $CommitTitle) | Out-Null
+        # Commit message goes through a temp file (`git commit -F`) rather than
+        # `-m` on the command line. Release-notes bullets are free-form text and
+        # may contain embedded double quotes (e.g. a quoted UI label) - PowerShell
+        # builds native-command command lines by wrapping each argument in quotes,
+        # and an embedded `"` prematurely closes that wrapper, splitting the rest
+        # of the message into separate arguments that git then misparses as
+        # pathspecs. Reading from a file sidesteps command-line quoting entirely.
+        $CommitMsgFile = [System.IO.Path]::GetTempFileName()
+        try {
+            $CommitMsg = if ($CommitBody) { "$CommitTitle`n`n$CommitBody" } else { $CommitTitle }
+            Set-Content -Path $CommitMsgFile -Value $CommitMsg -Encoding UTF8 -NoNewline
+            Invoke-Git -GitArgs @('commit', '-F', $CommitMsgFile) | Out-Null
+        } finally {
+            Remove-Item -Path $CommitMsgFile -Force -ErrorAction SilentlyContinue
         }
         Invoke-Git -GitArgs @('push', '-u', 'origin', $TargetBranch) | Out-Null
         $Sha = (Invoke-Git -GitArgs @('rev-parse', 'HEAD')).Trim()
