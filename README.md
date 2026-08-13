@@ -15,17 +15,17 @@ installer binaries themselves. Release assets are installer binaries only; SHA-2
 `version.json`. Ignore GitHub's auto-generated "Source code" zip/tar.gz links.
 
 <!-- LATEST-RELEASE:BEGIN -->
-## Latest release: v2.8.20
+## Latest release: v2.8.30
 
-Download from the [v2.8.20 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.8.20):
+Download from the [v2.8.30 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.8.30):
 
 | Platform | File |
 |----------|------|
-| MemoryScreenSaverPlus-Setup-v2.8.20-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.8.20-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.20/MemoryScreenSaverPlus-Setup-v2.8.20-win-x64.exe) |
-| MemoryScreenSaverPlus-v2.8.20-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.8.20-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.20/MemoryScreenSaverPlus-v2.8.20-macos-x64.tar.gz) |
-| MemoryScreenSaverPlus-v2.8.20-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.8.20-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.20/MemoryScreenSaverPlus-v2.8.20-macos-arm64.tar.gz) |
+| MemoryScreenSaverPlus-Setup-v2.8.30-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.8.30-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.30/MemoryScreenSaverPlus-Setup-v2.8.30-win-x64.exe) |
+| MemoryScreenSaverPlus-v2.8.30-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.8.30-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.30/MemoryScreenSaverPlus-v2.8.30-macos-x64.tar.gz) |
+| MemoryScreenSaverPlus-v2.8.30-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.8.30-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.8.30/MemoryScreenSaverPlus-v2.8.30-macos-arm64.tar.gz) |
 
-Release notes: [release-notes/v2.8.20.md](release-notes/v2.8.20.md)
+Release notes: [release-notes/v2.8.30.md](release-notes/v2.8.30.md)
 
 SHA-256 hashes for each installer are in [version.json](version.json). Use the installer
 links above â€” ignore GitHub's auto-generated "Source code" zip/tar.gz (not product packages).
