@@ -15,17 +15,17 @@ installer binaries themselves. Release assets are installer binaries only; SHA-2
 `version.json`. Ignore GitHub's auto-generated "Source code" zip/tar.gz links.
 
 <!-- LATEST-RELEASE:BEGIN -->
-## Latest release: v2.9.22
+## Latest release: v2.9.33
 
-Download from the [v2.9.22 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.9.22):
+Download from the [v2.9.33 release page](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/tag/v2.9.33):
 
 | Platform | File |
 |----------|------|
-| MemoryScreenSaverPlus-Setup-v2.9.22-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.9.22-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.22/MemoryScreenSaverPlus-Setup-v2.9.22-win-x64.exe) |
-| MemoryScreenSaverPlus-v2.9.22-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.9.22-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.22/MemoryScreenSaverPlus-v2.9.22-macos-x64.tar.gz) |
-| MemoryScreenSaverPlus-v2.9.22-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.9.22-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.22/MemoryScreenSaverPlus-v2.9.22-macos-arm64.tar.gz) |
+| MemoryScreenSaverPlus-Setup-v2.9.33-win-x64.exe | [MemoryScreenSaverPlus-Setup-v2.9.33-win-x64.exe](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.33/MemoryScreenSaverPlus-Setup-v2.9.33-win-x64.exe) |
+| MemoryScreenSaverPlus-v2.9.33-macos-x64.tar.gz | [MemoryScreenSaverPlus-v2.9.33-macos-x64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.33/MemoryScreenSaverPlus-v2.9.33-macos-x64.tar.gz) |
+| MemoryScreenSaverPlus-v2.9.33-macos-arm64.tar.gz | [MemoryScreenSaverPlus-v2.9.33-macos-arm64.tar.gz](https://github.com/jalijaak/MemoryScreenSaverPlusX_Release/releases/download/v2.9.33/MemoryScreenSaverPlus-v2.9.33-macos-arm64.tar.gz) |
 
-Release notes: [release-notes/v2.9.22.md](release-notes/v2.9.22.md)
+Release notes: [release-notes/v2.9.33.md](release-notes/v2.9.33.md)
 
 SHA-256 hashes for each installer are in [version.json](version.json). Use the installer
 links above â€” ignore GitHub's auto-generated "Source code" zip/tar.gz (not product packages).
@@ -45,4 +45,4 @@ the release page and compare its SHA-256 with the value in [version.json](versio
 
 ## License
 
-AGPL-3.0.
+Free to use. Copyright (c) 2026 Quiet Hours Software. All rights reserved. The licence is shown by the installer.

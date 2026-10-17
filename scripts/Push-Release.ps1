@@ -379,7 +379,7 @@ $LatestEndMarker
 
 ## License
 
-AGPL-3.0.
+Free to use. Copyright (c) 2026 Quiet Hours Software. All rights reserved. The licence is shown by the installer.
 "@
     Set-Content -Path $ReadmePath -Value $ReadmeBody -Encoding UTF8
 }
