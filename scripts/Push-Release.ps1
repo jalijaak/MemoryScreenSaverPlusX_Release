@@ -8,6 +8,27 @@
 #
 # USAGE (from anywhere - it locates this repo via $PSScriptRoot):
 #   pwsh scripts/Push-Release.ps1 [-Version <ver>] [-SourceDistDir <path>] [-Force] [-DryRun]
+#                                 [-UploadStorePackage] [-StorePackageOnly]
+#   (also runs under Windows PowerShell 5.1:
+#    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Push-Release.ps1 ...)
+#
+# MICROSOFT STORE PACKAGE HOST (optional, opt-in):
+#   -UploadStorePackage  after the normal publish, also upload the Windows x64 installer to the
+#                        Cloudflare R2 bucket that backs https://downloads.memoryscreensaverplus.net
+#                        at  downloads/<version>/<installer file name>  and verify it the way
+#                        Partner Center needs (HTTP 200, NO redirect, correct Content-Length,
+#                        SHA-256 identical to version.json). Prints the Package URL to paste into
+#                        Partner Center. A key is NEVER overwritten: if it already exists with the
+#                        same bytes the step is a verified no-op; with different bytes it stops.
+#   -StorePackageOnly    do ONLY that step for an already-published version (no git, no GitHub,
+#                        no release-notes/README/version.json changes). Use it to (re)upload or
+#                        re-verify the Store package without re-running the release.
+#   R2 has no real folders: the key prefix downloads/<version>/ is created by the upload itself.
+#   To test the public URL from another machine/network use scripts\Test-StorePackage.ps1.
+#   Needs Node + Wrangler (`npm i -g wrangler`, or `npx` is used as a fallback) and a one-time
+#   interactive `wrangler login` as the Cloudflare account owner. No token or secret is stored in
+#   this repo or passed on the command line. Installers over ~300 MB exceed Wrangler's single-put
+#   limit and must be uploaded another way.
 #
 # PREREQUISITES:
 #   - git on PATH, push access to this repo.
@@ -34,7 +55,18 @@ param(
     [switch] $Force,
 
     # Stage + validate everything but skip the commit, push, and gh release.
-    [switch] $DryRun
+    [switch] $DryRun,
+
+    # After the normal publish, also upload the Windows x64 installer to the Microsoft
+    # Store package host (Cloudflare R2) and verify it. See the header comment.
+    [switch] $UploadStorePackage,
+
+    # Do ONLY the Store package upload + verification for an existing build (no git/GitHub work).
+    [switch] $StorePackageOnly,
+
+    # R2 bucket and its public custom-domain host (public names, not secrets).
+    [string] $StoreBucket = 'mssp-downloads',
+    [string] $StoreHost   = 'downloads.memoryscreensaverplus.net'
 )
 
 Set-StrictMode -Version Latest
@@ -101,6 +133,204 @@ function Invoke-Gh {
     return $out
 }
 
+# ── Microsoft Store package host (Cloudflare R2) ───────────────────────────────
+#
+# Partner Center installs an unpackaged (EXE/MSI) app by downloading it from the
+# Package URL, so that URL must be a DIRECT, NON-REDIRECTING, versioned, immutable
+# HTTPS link (REQ-WIN-REL-38). GitHub release assets redirect and are rejected.
+# These helpers upload the signed installer to R2 and prove the public URL meets
+# that contract. Nothing here touches git or the GitHub release.
+
+# Returns @{ Exe; Prefix } for running Wrangler, or $null when neither wrangler nor npx exists.
+function Get-WranglerLauncher {
+    if (Get-Command wrangler -ErrorAction SilentlyContinue) { return @{ Exe = 'wrangler'; Prefix = @() } }
+    if (Get-Command npx -ErrorAction SilentlyContinue)      { return @{ Exe = 'npx'; Prefix = @('--yes', 'wrangler@4') } }
+    return $null
+}
+
+# One HttpClient that NEVER follows redirects, so a 301/302 is reported instead of hidden.
+function New-NoRedirectHttpClient {
+    Add-Type -AssemblyName System.Net.Http
+    # Windows PowerShell 5.1 (.NET Framework) may default to old TLS; Cloudflare needs 1.2+.
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $false
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromMinutes(15)
+    return $client
+}
+
+# HEAD the URL. Status 0 means the request itself failed (DNS, TLS, timeout) - see Error.
+function Get-StoreObjectInfo {
+    param($Client, [string] $Url)
+    try {
+        $req  = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Head, $Url)
+        $resp = $Client.SendAsync($req).GetAwaiter().GetResult()
+        $loc  = if ($resp.Headers.Location) { $resp.Headers.Location.ToString() } else { '' }
+        $info = [pscustomobject]@{
+            Status   = [int]$resp.StatusCode
+            Length   = $resp.Content.Headers.ContentLength
+            Location = $loc
+            Error    = ''
+        }
+        $resp.Dispose()
+        return $info
+    } catch {
+        return [pscustomobject]@{ Status = 0; Length = $null; Location = ''; Error = $_.Exception.Message }
+    }
+}
+
+# Streams the object and returns its lowercase SHA-256, or $null if it is not a plain 200.
+function Get-StoreObjectSha256 {
+    param($Client, [string] $Url)
+    $resp = $Client.GetAsync($Url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+    try {
+        if ([int]$resp.StatusCode -ne 200) { return $null }
+        $stream = $resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha.ComputeHash($stream)
+        } finally {
+            $sha.Dispose()
+            $stream.Dispose()
+        }
+        return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLower()
+    } finally {
+        $resp.Dispose()
+    }
+}
+
+# Uploads $FilePath to R2 as downloads/<Version>/<file name> and verifies the public URL.
+# Never overwrites an existing key. -Preview prints the plan and changes nothing.
+function Publish-StorePackage {
+    param(
+        [string] $Version,
+        [string] $FilePath,
+        [string] $ExpectedSha256 = '',
+        [switch] $Preview
+    )
+
+    $FileName = Split-Path $FilePath -Leaf
+    $Size     = (Get-Item $FilePath).Length
+    $Key      = "downloads/$Version/$FileName"
+    $Url      = "https://$StoreHost/$Key"
+    $LocalSha = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
+
+    Write-Host "  File:    $FilePath"
+    Write-Host "  Size:    $Size bytes"
+    Write-Host "  SHA-256: $LocalSha"
+    Write-Host "  Bucket:  $StoreBucket   Key: $Key"
+    Write-Host "  URL:     $Url"
+
+    if ($Size -gt 300MB) {
+        Write-Error "Installer is $([math]::Round($Size / 1MB)) MB; Wrangler's single upload is limited to ~300 MB. Upload it with the S3-compatible API instead, then re-run with -StorePackageOnly to verify."
+    }
+    if ($ExpectedSha256 -and ($LocalSha -ne $ExpectedSha256.ToLower())) {
+        Write-Error "Installer SHA-256 ($LocalSha) does not match version.json ($ExpectedSha256). Refusing to publish a package that disagrees with the release metadata."
+    }
+
+    $Client = New-NoRedirectHttpClient
+
+    # Immutability: a versioned key is never overwritten (REQ-WIN-REL-38).
+    $Existing = Get-StoreObjectInfo -Client $Client -Url $Url
+    $AlreadyThere = $false
+    switch ($Existing.Status) {
+        200 {
+            $RemoteSha = Get-StoreObjectSha256 -Client $Client -Url $Url
+            if ($RemoteSha -eq $LocalSha) {
+                Write-Host "  Key already exists with identical content - nothing to upload, verifying only." -ForegroundColor Green
+                $AlreadyThere = $true
+            } else {
+                Write-Error "Key '$Key' already exists in '$StoreBucket' with DIFFERENT content (remote SHA-256: $RemoteSha). Store package keys are immutable and are never overwritten - build a new version instead."
+            }
+        }
+        404 { Write-Host '  Key does not exist yet - will upload.' }
+        0 {
+            Write-Error "Could not check whether '$Url' already exists ($($Existing.Error)). This often means this machine's DNS has not picked up '$StoreHost' yet - retry in a few minutes or from another network. Not uploading blind, because an upload would silently overwrite an existing key."
+        }
+        default {
+            Write-Error "Unexpected HTTP $($Existing.Status) from '$Url' before upload (Location: '$($Existing.Location)'). Expected 404 (new) or 200 (already uploaded). Check the R2 custom domain in Cloudflare."
+        }
+    }
+
+    if ($Preview) {
+        Write-Host "  -DryRun/-Preview: would $(if ($AlreadyThere) { 'verify' } else { 'upload and verify' }) $Url" -ForegroundColor DarkGray
+        return
+    }
+
+    if (-not $AlreadyThere) {
+        $Launcher = Get-WranglerLauncher
+        if (-not $Launcher) {
+            Write-Error ("Neither 'wrangler' nor 'npx' was found on PATH. One-time setup (normal window): " +
+                "'winget install OpenJS.NodeJS.LTS', then CLOSE and REOPEN the terminal so PATH refreshes, " +
+                "then 'npm i -g wrangler' and 'wrangler login' (sign in as the Cloudflare account owner). " +
+                "Then re-run with -StorePackageOnly. (Alternative without installing anything: upload the file " +
+                "in the Cloudflare dashboard to key '$Key', then re-run this script to verify it.)")
+        }
+        $Who = Invoke-Native -Exe $Launcher.Exe -NativeArgs ($Launcher.Prefix + @('whoami'))
+        if ($Who -match '(?i)not authenticated|please run .?wrangler login') {
+            Write-Error "Wrangler is not logged in. Run 'wrangler login' (opens a browser; sign in with the Cloudflare account that owns '$StoreBucket'), then re-run with -StorePackageOnly."
+        }
+
+        Write-Host "  Uploading to R2 (this can take a minute)..." -ForegroundColor Yellow
+        # --remote: act on the real bucket, not Wrangler's local simulation.
+        $PutArgs = $Launcher.Prefix + @('r2', 'object', 'put', "$StoreBucket/$Key",
+            '--file', $FilePath, '--content-type', 'application/octet-stream', '--remote')
+        $PutOut = Invoke-Native -Exe $Launcher.Exe -NativeArgs $PutArgs
+        if ($LASTEXITCODE -ne 0) {
+            $PutExit = $LASTEXITCODE
+            if ($PutOut -match '(?i)non-interactive|not logged in') {
+                # Wrangler sometimes needs a fresh OAuth login for R2 (the first `wrangler login` token
+                # can lack it). It can only do that on a real console, not inside this captured call.
+                $DirectCmd = "wrangler r2 object put $StoreBucket/$Key --file `"$FilePath`" --content-type application/octet-stream --remote"
+                Write-Error ("Wrangler needs an interactive login for this upload. Run this ONCE directly in your own terminal " +
+                    "(it may open a browser to sign in; keep the output attached to the console):`n  $DirectCmd`n" +
+                    "then re-run this script with -StorePackageOnly to verify the public URL.`n`nWrangler said:`n$PutOut")
+            }
+            Write-Error "wrangler r2 object put failed (exit $PutExit):`n$PutOut"
+        }
+        Write-Host '  Upload finished.' -ForegroundColor Green
+    }
+
+    # Verify the PUBLIC url the way Partner Center will use it: 200, no redirect,
+    # matching length, matching bytes. Retries cover brief propagation / DNS lag.
+    Write-Host '  Verifying the public URL...' -ForegroundColor Yellow
+    $Verified = $false
+    $Problem  = ''
+    for ($i = 1; $i -le 6 -and -not $Verified; $i++) {
+        $Info = Get-StoreObjectInfo -Client $Client -Url $Url
+        if ($Info.Status -ne 200) {
+            $Problem = "HTTP $($Info.Status) $($Info.Error) (Location: '$($Info.Location)')"
+        } elseif ($Info.Location) {
+            $Problem = "unexpected redirect to '$($Info.Location)'"
+        } elseif ($Info.Length -ne $Size) {
+            $Problem = "Content-Length $($Info.Length) does not match local size $Size"
+        } else {
+            $RemoteSha = Get-StoreObjectSha256 -Client $Client -Url $Url
+            if ($RemoteSha -eq $LocalSha) { $Verified = $true } else { $Problem = "SHA-256 mismatch (remote $RemoteSha)" }
+        }
+        if (-not $Verified -and $i -lt 6) {
+            Write-Host "    attempt $i failed: $Problem - retrying in 10 s" -ForegroundColor DarkGray
+            Start-Sleep -Seconds 10
+        }
+    }
+    if (-not $Verified) {
+        Write-Error "Store package verification FAILED for $Url : $Problem. Do not submit this URL to Partner Center."
+    }
+
+    Write-Host '  HTTP 200, no redirect, Content-Length and SHA-256 match.' -ForegroundColor Green
+    Write-Host ''
+    Write-Host "  Partner Center Package URL:" -ForegroundColor Cyan
+    Write-Host "    $Url" -ForegroundColor Cyan
+    Write-Host "  Submit it per docs/MICROSOFT-STORE.md (silent switches /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /STORE)." -ForegroundColor DarkGray
+    Write-Host "  Never replace this file: the next release gets its own downloads/<version>/ key." -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host "  Test it from ANOTHER machine/network (no repo or Node needed there):" -ForegroundColor Cyan
+    Write-Host "    powershell -NoProfile -ExecutionPolicy Bypass -File Test-StorePackage.ps1 -Version $Version" -ForegroundColor Cyan
+    Write-Host "  (copy scripts\Test-StorePackage.ps1 over, or once it is pushed run it straight from GitHub:)" -ForegroundColor DarkGray
+    Write-Host "    powershell -NoProfile -Command ""& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/jalijaak/MemoryScreenSaverPlusX_Release/main/scripts/Test-StorePackage.ps1).Content)) -Version $Version""" -ForegroundColor DarkGray
+}
+
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     Write-Error 'git not found on PATH.'
 }
@@ -161,6 +391,30 @@ $MacPkg    = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos.pkg"
 $MacX64Tar = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-x64.tar.gz"
 $MacArmTar = Join-Path $MacDir "MemoryScreenSaverPlus-v$Version-macos-arm64.tar.gz"
 $NotesFile = Join-Path $SourceDistDir "ReleaseNotes-v$Version.md"
+
+# ── -StorePackageOnly: upload + verify the Store package and stop ────────────
+# No git, GitHub, release-notes, README or version.json work happens on this path.
+if ($StorePackageOnly) {
+    Write-Host ''
+    Write-Host '--- Microsoft Store package host (R2) - only ---' -ForegroundColor Yellow
+    if (-not (Test-Path $WinExe)) {
+        Write-Error "Windows x64 installer not found: $WinExe (build it first, or pass -Version / -SourceDistDir)."
+    }
+    # Cross-check against the already-published version.json when it describes this version.
+    $PublishedSha = ''
+    $PublishedJsonPath = Join-Path $RepoRoot 'version.json'
+    if (Test-Path $PublishedJsonPath) {
+        $PublishedObj = Get-Content $PublishedJsonPath -Raw | ConvertFrom-Json
+        if ($PublishedObj.version -eq $Version) {
+            $PublishedWin = @($PublishedObj.platforms.windows.installers | Where-Object { $_.rid -eq 'win-x64' })
+            if ($PublishedWin.Count -gt 0) { $PublishedSha = [string]$PublishedWin[0].sha256 }
+        } else {
+            Write-Warning "version.json in this repo describes v$($PublishedObj.version), not v$Version - skipping the metadata cross-check."
+        }
+    }
+    Publish-StorePackage -Version $Version -FilePath $WinExe -ExpectedSha256 $PublishedSha -Preview:$DryRun
+    exit 0
+}
 
 # Minimal GitHub Release asset list: installer binaries only.
 # SHA-256 lives in version.json (REQ-XP-REL-15). No checksums-*.txt sidecars.
@@ -225,7 +479,7 @@ Write-Host '--- Syncing with origin ---' -ForegroundColor Yellow
 # This script only ever stages the specific paths it manages below - never a
 # blanket "add everything" - so an unrelated dirty file in this PUBLIC repo
 # can never be swept into a push by accident.
-$ManagedPaths = @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', '.gitattributes', 'CLAUDE.md')
+$ManagedPaths = @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', 'scripts/Test-StorePackage.ps1', '.gitattributes', 'CLAUDE.md')
 function Test-IsManagedPath {
     param([string] $RelPath)
     $Normalized = ($RelPath.Trim('"')) -replace '\\', '/'
@@ -401,7 +655,7 @@ if ($BeginIdx -ge 0 -and $EndIdx -ge 0) {
 Write-Host ''
 Write-Host '--- Committing ---' -ForegroundColor Yellow
 
-foreach ($RelPath in @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', '.gitattributes', 'CLAUDE.md')) {
+foreach ($RelPath in @('README.md', 'version.json', "release-notes/v$Version.md", 'scripts/Push-Release.ps1', 'scripts/Test-StorePackage.ps1', '.gitattributes', 'CLAUDE.md')) {
     if (Test-Path (Join-Path $RepoRoot $RelPath)) {
         Invoke-Git -GitArgs @('add', '--', $RelPath) | Out-Null
     }
@@ -486,4 +740,13 @@ if (-not $GhCmd) {
         }
         Write-Host "=== v$Version published: $RepoWebUrl/releases/tag/v$Version ===" -ForegroundColor Green
     }
+}
+
+# ── Microsoft Store package host (optional) ─────────────────────────────────
+
+if ($UploadStorePackage) {
+    Write-Host ''
+    Write-Host '--- Microsoft Store package host (R2) ---' -ForegroundColor Yellow
+    # $WinInstallers[0] is the win-x64 entry whose SHA-256 was written to version.json above.
+    Publish-StorePackage -Version $Version -FilePath $WinExe -ExpectedSha256 ([string]$WinInstallers[0].sha256) -Preview:$DryRun
 }

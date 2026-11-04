@@ -32,3 +32,11 @@ keeps them empty).
 Run `scripts/Push-Release.ps1 [-Version <ver>]` from a machine with a local checkout of the
 private source repo, with its installers already built (`dist/` populated). See the script's
 header comment for full prerequisites and options (`-Force`, `-DryRun`, `-SourceDistDir`).
+
+For a Microsoft Store submission the same script can also upload the Windows installer to the Store
+package host (Cloudflare R2, `https://downloads.memoryscreensaverplus.net/downloads/<version>/<file>`):
+add `-UploadStorePackage` to a normal publish, or run `-StorePackageOnly` for a version that is already
+published. It never overwrites an existing key, verifies HTTP 200 / no redirect / `Content-Length` /
+SHA-256, and prints the Package URL for Partner Center. It needs Node + `wrangler login` once; no secret is
+stored in this repo. `scripts/Test-StorePackage.ps1` is a standalone checker (no repo, Node or credentials)
+to prove the public URL works from another machine or network.
