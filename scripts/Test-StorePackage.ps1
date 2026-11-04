@@ -9,8 +9,9 @@
 #   1. DNS: the host resolves from this machine.
 #   2. HTTP 200 on the exact URL, with NO redirect (Partner Center rejects redirecting URLs).
 #   3. Content-Length equals the published installer size.
-#   4. A real Range request (bytes 0-99) is answered with 206 and 100 bytes - lets the Store
-#      resume interrupted downloads.
+#   4. (advisory, never fails the run) A real Range request (bytes 0-99) is answered with 206 and
+#      100 bytes - lets a client resume interrupted downloads. Some proxies/security gateways
+#      strip it, so a WARN here is informational; Partner Center does not require it.
 #   5. The downloaded bytes have the SHA-256 published in version.json.
 #
 # USAGE
@@ -151,9 +152,15 @@ if (-not $headOk) {
         $rcode = [int]$rresp.StatusCode
         $rlen  = $rresp.Content.Headers.ContentLength
         $rresp.Dispose()
-        Write-Result ($rcode -eq 206 -and $rlen -eq 100) '4 Range request works' ("asked for bytes 0-99, got status {0} with {1} bytes" -f $rcode, $rlen)
+        if ($rcode -eq 206 -and $rlen -eq 100) {
+            Write-Result $true '4 Range request works' ("asked for bytes 0-99, got status {0} with {1} bytes" -f $rcode, $rlen)
+        } else {
+            # Advisory only: Partner Center does not require range support.
+            Write-Host ("  WARN  4 Range request not honored  asked for bytes 0-99, got status {0} with {1} bytes. " -f $rcode, $rlen) -ForegroundColor Yellow -NoNewline
+            Write-Host 'Not a Partner Center requirement (it only helps resume interrupted downloads). The server itself answers 206; a proxy or TLS-inspecting gateway on this network is the usual cause - retry from another network to confirm.' -ForegroundColor Yellow
+        }
     } catch {
-        Write-Result $false '4 Range request works' $_.Exception.Message
+        Write-Host ("  WARN  4 Range request could not be tested  {0}" -f $_.Exception.Message) -ForegroundColor Yellow
     }
 }
 
