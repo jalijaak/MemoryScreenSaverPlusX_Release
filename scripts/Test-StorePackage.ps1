@@ -9,7 +9,8 @@
 #   1. DNS: the host resolves from this machine.
 #   2. HTTP 200 on the exact URL, with NO redirect (Partner Center rejects redirecting URLs).
 #   3. Content-Length equals the published installer size.
-#   4. Range requests are advertised (Accept-Ranges: bytes) - lets the Store resume downloads.
+#   4. A real Range request (bytes 0-99) is answered with 206 and 100 bytes - lets the Store
+#      resume interrupted downloads.
 #   5. The downloaded bytes have the SHA-256 published in version.json.
 #
 # USAGE
@@ -122,18 +123,38 @@ try {
     $code = [int]$resp.StatusCode
     $loc  = if ($resp.Headers.Location) { $resp.Headers.Location.ToString() } else { '' }
     $len  = $resp.Content.Headers.ContentLength
-    $rng  = ($resp.Headers.AcceptRanges -contains 'bytes')
+    $ar = ''
+    $vals = $null
+    if ($resp.Headers.TryGetValues('Accept-Ranges', [ref]$vals)) { $ar = ($vals -join ',') }
+    elseif ($resp.Content.Headers.TryGetValues('Accept-Ranges', [ref]$vals)) { $ar = ($vals -join ',') }
     $ctype = if ($resp.Content.Headers.ContentType) { $resp.Content.Headers.ContentType.ToString() } else { '' }
     $resp.Dispose()
 
     Write-Result ($code -eq 200 -and -not $loc) '2 HTTP 200, no redirect' ("status {0}{1}" -f $code, $(if ($loc) { ", redirects to $loc" } else { '' }))
     if ($Size -gt 0) { Write-Result ($len -eq $Size) '3 Content-Length matches' ("server says {0}, expected {1}" -f $len, $Size) }
     else             { Write-Host ("  INFO  3 Content-Length  server says {0} (no expected size known)" -f $len) -ForegroundColor Yellow }
-    Write-Result $rng '4 Range requests supported' ("Accept-Ranges: bytes; Content-Type: $ctype")
+    Write-Host ("  INFO  Accept-Ranges header: '{0}'; Content-Type: {1}" -f $ar, $ctype) -ForegroundColor Yellow
     $headOk = ($code -eq 200 -and -not $loc)
 } catch {
     Write-Result $false '2 HTTP 200, no redirect' $_.Exception.Message
     $headOk = $false
+}
+
+# -- 4. a real Range request (lets the Store resume an interrupted download) --------
+if (-not $headOk) {
+    Write-Host '  SKIP  4 Range request  (the URL did not answer 200 without a redirect)' -ForegroundColor Yellow
+} else {
+    try {
+        $rreq = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $Url)
+        $rreq.Headers.Range = [System.Net.Http.Headers.RangeHeaderValue]::new([long]0, [long]99)
+        $rresp = $client.SendAsync($rreq, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        $rcode = [int]$rresp.StatusCode
+        $rlen  = $rresp.Content.Headers.ContentLength
+        $rresp.Dispose()
+        Write-Result ($rcode -eq 206 -and $rlen -eq 100) '4 Range request works' ("asked for bytes 0-99, got status {0} with {1} bytes" -f $rcode, $rlen)
+    } catch {
+        Write-Result $false '4 Range request works' $_.Exception.Message
+    }
 }
 
 # -- 5. download and hash --------------------------------------------------------
