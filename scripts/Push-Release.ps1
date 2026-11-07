@@ -678,7 +678,7 @@ if (-not $StagedDiff) {
         if ($BulletMatches.Count -gt 0) {
             $CommitBody = ($BulletMatches | ForEach-Object { $_.Value.TrimEnd() }) -join "`n"
         } else {
-            Write-Warning "release-notes/v$Version.md has an empty Changes section - source commit subjects were not captured. Re-run Publish-Release in the source repo (restore release-baseline.txt if needed) before pushing."
+            Write-Warning "release-notes/v$Version.md has an empty Changes section - source commit subjects were not captured. Re-run Publish-Release in the source repo (write build/release-notes-next.md, or check build/release-baseline.txt = source commit of the last published release) before pushing."
         }
     }
 
